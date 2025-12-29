@@ -24,7 +24,7 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           {/* Auth Routes */}
-          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="/" element={<Navigate to="/admin/dashboard" replace />} />
           <Route path="/login" element={<Login />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/otp-verification" element={<OTPVerification />} />
