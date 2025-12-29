@@ -27,9 +27,14 @@ const AdminLayout = () => {
   const location = useLocation();
 
   const isActive = (path: string) => location.pathname === path;
+  const getHeaderTitle = () => {
+    if (location.pathname.startsWith("/admin/users/")) return "User Profile";
+    if (location.pathname === "/admin/profile") return "Profile";
+    return menuItems.find((item) => isActive(item.path))?.label || "Dashboard";
+  };
 
   return (
-    <div className="min-h-screen bg-background flex">
+    <div className="h-screen bg-background flex overflow-hidden">
       {/* Mobile Menu Overlay */}
       {mobileMenuOpen && (
         <div
@@ -41,17 +46,19 @@ const AdminLayout = () => {
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed lg:static inset-y-0 left-0 z-50 bg-sidebar border-r border-sidebar-border transition-all duration-300",
+          "fixed h-screen lg:static inset-y-0 left-0 z-50 bg-sidebar border-r border-sidebar-border transition-all duration-300 overflow-hidden",
           sidebarOpen ? "w-64" : "w-20",
-          mobileMenuOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+          mobileMenuOpen
+            ? "translate-x-0"
+            : "-translate-x-full lg:translate-x-0"
         )}
       >
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full overflow-hidden">
           {/* Logo */}
           <div className="h-16 flex items-center justify-between px-4 border-b border-sidebar-border">
             {sidebarOpen && (
               <span className="text-xl font-bold text-sidebar-primary animate-fade-in">
-                Admin Panel
+                Moments
               </span>
             )}
             <button
@@ -107,7 +114,7 @@ const AdminLayout = () => {
       </aside>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 h-screen">
         {/* Header */}
         <header className="h-16 bg-card border-b border-border flex items-center justify-between px-4 lg:px-6">
           <div className="flex items-center gap-4">
@@ -118,19 +125,23 @@ const AdminLayout = () => {
               <Menu className="w-5 h-5 text-foreground" />
             </button>
             <h1 className="text-lg font-semibold text-foreground">
-              {menuItems.find((item) => isActive(item.path))?.label || "Dashboard"}
+              {getHeaderTitle()}
             </h1>
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+            <Link
+              to="/admin/profile"
+              className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20 hover:border-primary/50 transition-colors"
+              aria-label="View profile"
+            >
               <User className="w-5 h-5 text-primary" />
-            </div>
+            </Link>
           </div>
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 p-4 lg:p-6 overflow-auto">
+        <main className="flex-1 p-4 lg:p-6 overflow-y-auto overflow-x-hidden">
           <Outlet />
         </main>
       </div>

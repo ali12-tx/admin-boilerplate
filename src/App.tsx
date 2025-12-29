@@ -9,6 +9,8 @@ import OTPVerification from "./pages/OTPVerification";
 import AdminLayout from "./components/admin/AdminLayout";
 import Dashboard from "./pages/admin/Dashboard";
 import Users from "./pages/admin/Users";
+import UserProfile from "./pages/admin/UserProfile";
+import AdminProfile from "./pages/admin/AdminProfile";
 import PrivacyPolicy from "./pages/admin/PrivacyPolicy";
 import TermsConditions from "./pages/admin/TermsConditions";
 import AboutApp from "./pages/admin/AboutApp";
@@ -33,7 +35,9 @@ const App = () => (
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<Navigate to="/admin/dashboard" replace />} />
             <Route path="dashboard" element={<Dashboard />} />
+            <Route path="profile" element={<AdminProfile />} />
             <Route path="users" element={<Users />} />
+            <Route path="users/:id" element={<UserProfile />} />
             <Route path="privacy-policy" element={<PrivacyPolicy />} />
             <Route path="terms" element={<TermsConditions />} />
             <Route path="about" element={<AboutApp />} />

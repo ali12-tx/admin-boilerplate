@@ -16,7 +16,7 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex">
+    <div className="max-h-screen flex">
       {/* Left Side - Illustration */}
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary/10 via-accent to-primary/5 items-center justify-center p-12">
         <div className="max-w-lg animate-fade-in">
@@ -26,7 +26,9 @@ const Login = () => {
             className="w-full h-auto rounded-2xl shadow-2xl"
           />
           <div className="mt-8 text-center">
-            <h2 className="text-2xl font-bold text-foreground">Admin Dashboard</h2>
+            <h2 className="text-2xl font-bold text-foreground">
+              Moments Admin
+            </h2>
             <p className="mt-2 text-muted-foreground">
               Manage your application with ease and efficiency
             </p>
@@ -42,12 +44,16 @@ const Login = () => {
               <Lock className="w-8 h-8 text-primary-foreground" />
             </div>
             <h1 className="text-3xl font-bold text-foreground">Welcome Back</h1>
-            <p className="mt-2 text-muted-foreground">Sign in to your admin account</p>
+            <p className="mt-2 text-muted-foreground">
+              Sign in to your admin account
+            </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Email Address</label>
+              <label className="text-sm font-medium text-foreground">
+                Email Address
+              </label>
               <div className="relative">
                 <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                 <input
@@ -61,7 +67,9 @@ const Login = () => {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Password</label>
+              <label className="text-sm font-medium text-foreground">
+                Password
+              </label>
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                 <input
@@ -76,7 +84,11 @@ const Login = () => {
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-4 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  {showPassword ? (
+                    <EyeOff className="w-5 h-5" />
+                  ) : (
+                    <Eye className="w-5 h-5" />
+                  )}
                 </button>
               </div>
             </div>
