@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Ban, Trash2, Search, UserCheck, UserX, Clock3, Eye, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { Ban, Trash2, Search, UserCheck, UserX, Clock3, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import ConfirmDialog from "@/components/admin/ConfirmDialog";
+import ConfirmDialog from "@/components/shared/ConfirmDialog";
+import Pagination from "@/components/shared/Pagination";
 import { useToast } from "@/hooks/use-toast";
 
 interface User {
@@ -257,62 +258,16 @@ const Users = () => {
         )}
 
         {filteredUsers.length > 0 && (
-          <div className="border-t border-border px-6 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between bg-muted/30">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span>Items per page</span>
-              <div className="relative">
-                <select
-                  value={itemsPerPage}
-                  onChange={(e) => {
-                    setItemsPerPage(Number(e.target.value));
-                    setCurrentPage(1);
-                  }}
-                  className="appearance-none bg-background border border-border rounded-md px-3 py-1 pr-8 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40"
-                >
-                  {[5, 10, 20].map((value) => (
-                    <option key={value} value={value}>
-                      {value}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              </div>
-              <span className="hidden sm:inline">•</span>
-              <span>
-                Showing {startIndex + 1}-
-                {Math.min(startIndex + itemsPerPage, filteredUsers.length)} of{" "}
-                {filteredUsers.length}
-              </span>
-            </div>
-
-            <div className="flex items-center gap-3 text-sm text-muted-foreground">
-              <span>
-                Page {currentPage} of {totalPages}
-              </span>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-                  disabled={currentPage === 1}
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                  <span className="sr-only">Previous page</span>
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() =>
-                    setCurrentPage((prev) => Math.min(prev + 1, totalPages))
-                  }
-                  disabled={currentPage === totalPages}
-                >
-                  <ChevronRight className="w-4 h-4" />
-                  <span className="sr-only">Next page</span>
-                </Button>
-              </div>
-            </div>
-          </div>
+          <Pagination
+            page={currentPage}
+            pageSize={itemsPerPage}
+            total={filteredUsers.length}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={(size) => {
+              setItemsPerPage(size);
+              setCurrentPage(1);
+            }}
+          />
         )}
       </div>
 

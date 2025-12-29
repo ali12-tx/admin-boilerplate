@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Save, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import RichTextEditor from "@/components/admin/RichTextEditor";
-import ConfirmDialog from "@/components/admin/ConfirmDialog";
+import RichTextEditor from "@/components/shared/RichTextEditor";
+import ConfirmDialog from "@/components/shared/ConfirmDialog";
 import { useToast } from "@/hooks/use-toast";
 
 const defaultContent = `Privacy Policy
