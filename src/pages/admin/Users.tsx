@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Ban, Trash2, Search, UserCheck, UserX } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import ConfirmDialog from "@/components/admin/ConfirmDialog";
+import { useToast } from "@/hooks/use-toast";
 
 interface User {
   id: number;
@@ -23,6 +25,10 @@ const dummyUsers: User[] = [
 const Users = () => {
   const [users, setUsers] = useState<User[]>(dummyUsers);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [blockDialogOpen, setBlockDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const { toast } = useToast();
 
   const filteredUsers = users.filter(
     (user) =>
@@ -30,22 +36,78 @@ const Users = () => {
       user.email.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleBlock = (userId: number) => {
+  const handleBlockClick = (user: User) => {
+    setSelectedUser(user);
+    setBlockDialogOpen(true);
+  };
+
+  const handleDeleteClick = (user: User) => {
+    setSelectedUser(user);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmBlock = () => {
+    if (!selectedUser) return;
+    
+    const newStatus = selectedUser.status === "active" ? "blocked" : "active";
     setUsers(
       users.map((user) =>
-        user.id === userId
-          ? { ...user, status: user.status === "active" ? "blocked" : "active" }
+        user.id === selectedUser.id
+          ? { ...user, status: newStatus }
           : user
       )
     );
+    
+    toast({
+      title: newStatus === "blocked" ? "User Blocked" : "User Unblocked",
+      description: `${selectedUser.name} has been ${newStatus === "blocked" ? "blocked" : "unblocked"} successfully.`,
+    });
+    
+    setSelectedUser(null);
   };
 
-  const handleDelete = (userId: number) => {
-    setUsers(users.filter((user) => user.id !== userId));
+  const confirmDelete = () => {
+    if (!selectedUser) return;
+    
+    setUsers(users.filter((user) => user.id !== selectedUser.id));
+    
+    toast({
+      title: "User Deleted",
+      description: `${selectedUser.name} has been deleted successfully.`,
+      variant: "destructive",
+    });
+    
+    setSelectedUser(null);
   };
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* Block Confirmation Dialog */}
+      <ConfirmDialog
+        open={blockDialogOpen}
+        onOpenChange={setBlockDialogOpen}
+        title={selectedUser?.status === "active" ? "Block User?" : "Unblock User?"}
+        description={
+          selectedUser?.status === "active"
+            ? `Are you sure you want to block ${selectedUser?.name}? They will no longer be able to access the application.`
+            : `Are you sure you want to unblock ${selectedUser?.name}? They will regain access to the application.`
+        }
+        confirmLabel={selectedUser?.status === "active" ? "Block" : "Unblock"}
+        onConfirm={confirmBlock}
+        variant={selectedUser?.status === "active" ? "destructive" : "default"}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        title="Delete User?"
+        description={`Are you sure you want to delete ${selectedUser?.name}? This action cannot be undone.`}
+        confirmLabel="Delete"
+        onConfirm={confirmDelete}
+        variant="destructive"
+      />
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
         <div>
@@ -128,7 +190,7 @@ const Users = () => {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => handleBlock(user.id)}
+                        onClick={() => handleBlockClick(user)}
                         className={`hover:bg-muted ${
                           user.status === "blocked"
                             ? "text-success hover:text-success"
@@ -141,7 +203,7 @@ const Users = () => {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => handleDelete(user.id)}
+                        onClick={() => handleDeleteClick(user)}
                         className="text-destructive hover:text-destructive hover:bg-destructive/10"
                         title="Delete user"
                       >
@@ -181,7 +243,11 @@ const Users = () => {
           <p className="text-sm text-muted-foreground">Blocked</p>
         </div>
         <div className="admin-card p-4 text-center">
-          <p className="text-2xl font-bold text-info">92%</p>
+          <p className="text-2xl font-bold text-info">
+            {users.length > 0 
+              ? Math.round((users.filter((u) => u.status === "active").length / users.length) * 100)
+              : 0}%
+          </p>
           <p className="text-sm text-muted-foreground">Active Rate</p>
         </div>
       </div>
