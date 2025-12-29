@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Save, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import RichTextEditor from "@/components/admin/RichTextEditor";
+import ConfirmDialog from "@/components/admin/ConfirmDialog";
 import { useToast } from "@/hooks/use-toast";
 
 const defaultContent = `About Our Application
@@ -38,9 +39,14 @@ Thank you for choosing our application. We're excited to have you on this journe
 const AboutApp = () => {
   const [content, setContent] = useState(defaultContent);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const { toast } = useToast();
 
-  const handleSave = () => {
+  const handleSaveClick = () => {
+    setSaveDialogOpen(true);
+  };
+
+  const confirmSave = () => {
     setLastSaved(new Date());
     toast({
       title: "Changes saved",
@@ -50,6 +56,16 @@ const AboutApp = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* Save Confirmation Dialog */}
+      <ConfirmDialog
+        open={saveDialogOpen}
+        onOpenChange={setSaveDialogOpen}
+        title="Save Changes?"
+        description="Are you sure you want to save these changes? This will update the about page visible to all users."
+        confirmLabel="Save Changes"
+        onConfirm={confirmSave}
+      />
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
         <div>
@@ -66,7 +82,7 @@ const AboutApp = () => {
               Last saved: {lastSaved.toLocaleTimeString()}
             </span>
           )}
-          <Button onClick={handleSave} className="gap-2">
+          <Button onClick={handleSaveClick} className="gap-2">
             <Save className="w-4 h-4" />
             Save Changes
           </Button>
