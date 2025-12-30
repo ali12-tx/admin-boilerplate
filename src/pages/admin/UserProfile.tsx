@@ -1,284 +1,279 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   BadgeCheck,
-  Ban,
   ChevronLeft,
-  FileText,
   Mail,
-  Phone,
-  User,
+  ShieldAlert,
+  ShieldCheck,
+  User as UserIcon,
+  Users as UsersIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { dummyUsers } from "./Users";
+import { api, ApiClientError } from "@/config/client";
+import { API_ENDPOINTS } from "@/config/config";
+import type { RemoteUser } from "@/types/users";
+import type { User } from "./Users";
 
-type UserStatus = "active" | "blocked" | "pending";
+type UserProfileApiResponse =
+  | RemoteUser
+  | { user?: RemoteUser }
+  | { data?: RemoteUser | { user?: RemoteUser } };
 
-interface Document {
-  id: number;
+type ProfileView = {
+  id: string;
   name: string;
-  type: string;
-  status: "verified" | "pending" | "rejected";
-  url?: string;
-}
+  username?: string;
+  email: string;
+  avatar?: string;
+  bio?: string;
+  followersCount: number;
+  followingCount: number;
+  isVerified: boolean;
+  isProfileCompleted: boolean;
+  isDeleted: boolean;
+  isMuted?: boolean;
+  isFollowing?: boolean;
+};
 
-const mockDocuments: Document[] = [
-  {
-    id: 1,
-    name: "Government ID",
-    type: "Identity",
-    status: "verified",
-    url: "#",
-  },
-  {
-    id: 2,
-    name: "Proof of Address",
-    type: "Address",
-    status: "pending",
-    url: "#",
-  },
-  {
-    id: 3,
-    name: "Selfie Verification",
-    type: "Identity",
-    status: "pending",
-    url: "#",
-  },
-];
+const extractProfile = (
+  payload: UserProfileApiResponse | undefined
+): RemoteUser | null => {
+  if (!payload || typeof payload !== "object") return null;
+  const data = "data" in payload && payload.data ? payload.data : payload;
+  if (data && typeof data === "object") {
+    if ("followers" in data || "following" in data || "bio" in data) {
+      return data as RemoteUser;
+    }
+    if ("user" in data && (data as { user?: RemoteUser }).user) {
+      return (data as { user?: RemoteUser }).user ?? null;
+    }
+  }
+  return null;
+};
+
+const normalizeProfile = (
+  remote: RemoteUser,
+  fallbackId?: string
+): ProfileView => {
+  const email = remote.user?.email?.trim() || "N/A";
+  const name =
+    remote.fullName?.trim() ||
+    remote.username?.trim() ||
+    (email ? email.split("@")[0] : undefined) ||
+    "Unknown User";
+
+  return {
+    id: remote._id || fallbackId || "unknown",
+    name,
+    username: remote.username,
+    email,
+    avatar: remote.profilePicture,
+    bio: remote.bio,
+    followersCount: remote.followers?.length ?? 0,
+    followingCount: remote.following?.length ?? 0,
+    isVerified: Boolean(remote.user?.isVerified),
+    isProfileCompleted: Boolean(remote.user?.isProfileCompleted),
+    isDeleted: Boolean(remote.user?.isDeleted),
+    isMuted: remote.isMuted,
+    isFollowing: remote.isFollowing,
+  };
+};
+
+const normalizeFromState = (user?: User): ProfileView | undefined => {
+  if (!user) return undefined;
+  return {
+    id: user.id,
+    name: user.name,
+    username: user.username,
+    email: user.email,
+    avatar: user.avatar,
+    bio: user.bio,
+    followersCount: user.followersCount,
+    followingCount: user.followingCount,
+    isVerified: Boolean(user.isVerified),
+    isProfileCompleted: Boolean(user.isProfileCompleted),
+    isDeleted: Boolean(user.isDeleted),
+    isMuted: user.isMuted,
+    isFollowing: user.isFollowing,
+  };
+};
 
 const UserProfile = () => {
-  const { state } = useLocation();
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { state } = useLocation();
 
-  const user = useMemo(() => {
-    if (state?.user) return state.user;
-    const numericId = Number(id);
-    return dummyUsers.find((u) => u.id === numericId);
-  }, [state, id]);
+  const [profile, setProfile] = useState<ProfileView | undefined>(
+    normalizeFromState(state?.user)
+  );
+  const [isLoading, setIsLoading] = useState(!state?.user);
+  const [error, setError] = useState<string | null>(null);
 
-  const [status, setStatus] = useState<UserStatus>(user?.status ?? "pending");
-  const [documents, setDocuments] = useState<Document[]>(mockDocuments);
+  const initials = useMemo(
+    () => (profile?.name ? profile.name.charAt(0).toUpperCase() : "U"),
+    [profile?.name]
+  );
 
-  if (!user) {
+  useEffect(() => {
+    if (!id) return;
+    const loadProfile = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const response = await api.get<UserProfileApiResponse>(
+          API_ENDPOINTS.USER.GET_USER(id)
+        );
+        const remoteProfile = extractProfile(response);
+        if (!remoteProfile) {
+          setProfile(undefined);
+          setError("Profile not found.");
+          return;
+        }
+        setProfile(normalizeProfile(remoteProfile, id));
+      } catch (err) {
+        const message =
+          err instanceof ApiClientError
+            ? err.message
+            : "Unable to load user profile. Please try again.";
+        setError(message);
+        setProfile(undefined);
+        toast({
+          variant: "destructive",
+          title: "Failed to load profile",
+          description: message,
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadProfile();
+  }, [id, toast]);
+
+  if (isLoading) {
     return (
       <div className="space-y-4 animate-fade-in">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
             <ChevronLeft className="w-4 h-4" /> Back
           </Button>
-          <h2 className="text-2xl font-bold text-foreground">User not found</h2>
+          <h2 className="text-2xl font-bold text-foreground">
+            Loading profile...
+          </h2>
         </div>
         <p className="text-muted-foreground">
-          We could not locate this user. Please return to the users list.
+          Fetching the latest profile details.
+        </p>
+      </div>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <div className="space-y-4 animate-fade-in">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
+            <ChevronLeft className="w-4 h-4" /> Back
+          </Button>
+          <h2 className="text-2xl font-bold text-foreground">
+            Profile unavailable
+          </h2>
+        </div>
+        <p className="text-muted-foreground">
+          {error ??
+            "This profile does not exist or could not be loaded. Please return to the users list."}
         </p>
         <Button onClick={() => navigate("/admin/users")}>Go to Users</Button>
       </div>
     );
   }
 
-  const handleApprove = () => {
-    setStatus("active");
-    setDocuments((docs) =>
-      docs.map((doc) =>
-        doc.status === "pending" ? { ...doc, status: "verified" } : doc
-      )
-    );
-    toast({
-      title: "User Approved",
-      description: `${user.name} can now access the application.`,
-    });
-  };
-
-  const handleBlock = () => {
-    setStatus("blocked");
-    toast({
-      title: "User Blocked",
-      description: `${user.name} has been blocked and cannot log in.`,
-      variant: "destructive",
-    });
-  };
-
-  const renderStatusPill = (value: UserStatus) => {
-    if (value === "active")
-      return (
-        <span className="px-3 py-1 rounded-full bg-success/10 text-success text-sm font-medium">
-          Active
-        </span>
-      );
-    if (value === "blocked")
-      return (
-        <span className="px-3 py-1 rounded-full bg-destructive/10 text-destructive text-sm font-medium">
-          Blocked
-        </span>
-      );
-    return (
-      <span className="px-3 py-1 rounded-full bg-amber-50 text-amber-700 text-sm font-medium">
-        Pending
-      </span>
-    );
-  };
-
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex flex-col items-center gap-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate(-1)}
-            className="p-0 h-auto"
-          >
-            <ChevronLeft className="w-4 h-4" /> Back
-          </Button>
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
+          <ChevronLeft className="w-4 h-4" /> Back
+        </Button>
+        <h2 className="text-2xl font-bold text-foreground">User Profile</h2>
+      </div>
+
+      <div className="admin-card p-6 flex flex-col md:flex-row gap-6">
+        <div className="w-20 h-20 rounded-full bg-primary/10 text-primary text-2xl font-semibold flex items-center justify-center overflow-hidden">
+          {profile.avatar ? (
+            <img
+              src={profile.avatar}
+              alt={profile.name}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            initials
+          )}
+        </div>
+        <div className="flex-1 space-y-3">
+          <div className="flex flex-wrap gap-2 items-center">
+            <h3 className="text-xl font-semibold text-foreground">
+              {profile.name}
+            </h3>
+            {profile.isVerified && (
+              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-success/10 text-success text-sm font-medium">
+                <BadgeCheck className="w-4 h-4" />
+                Verified
+              </span>
+            )}
+            {profile.isProfileCompleted ? (
+              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-medium">
+                <ShieldCheck className="w-4 h-4" />
+                Profile Complete
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-amber-50 text-amber-700 text-sm font-medium">
+                <ShieldAlert className="w-4 h-4" />
+                Profile Incomplete
+              </span>
+            )}
+            {profile.isDeleted && (
+              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-destructive/10 text-destructive text-sm font-medium">
+                Deleted
+              </span>
+            )}
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-muted-foreground">
+            <span className="flex items-center gap-2">
+              <UserIcon className="w-4 h-4" />
+              Username: {profile.username ?? "N/A"}
+            </span>
+            <span className="flex items-center gap-2">
+              <Mail className="w-4 h-4" />
+              {profile.email}
+            </span>
+          </div>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            {profile.bio || "No bio provided."}
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="admin-card p-4 flex items-center gap-3">
+          <UsersIcon className="w-10 h-10 p-2 rounded-full bg-primary/10 text-primary" />
           <div>
-            <p className="text-sm text-muted-foreground">User Profile</p>
-            <h2 className="text-2xl font-bold text-foreground">{user.name}</h2>
+            <p className="text-2xl font-bold text-foreground">
+              {profile.followersCount}
+            </p>
+            <p className="text-sm text-muted-foreground">Followers</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {status !== "blocked" && (
-            <Button
-              variant="outline"
-              onClick={handleBlock}
-              className="gap-1 text-destructive hover:text-destructive hover:bg-destructive/10"
-            >
-              <Ban className="w-4 h-4" /> Block
-            </Button>
-          )}
-          {status !== "active" && (
-            <Button onClick={handleApprove} className="gap-1">
-              <BadgeCheck className="w-4 h-4" /> Approve
-            </Button>
-          )}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="admin-card p-6 space-y-4 lg:col-span-2">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xl font-semibold">
-              {user.name.charAt(0)}
-            </div>
-            <div>
-              <h3 className="text-xl font-semibold text-foreground">
-                {user.name}
-              </h3>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Mail className="w-4 h-4" /> {user.email}
-              </div>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Phone className="w-4 h-4" /> +1 (555) 123-4567
-              </div>
-            </div>
-            <div className="ml-auto">{renderStatusPill(status)}</div>
+        <div className="admin-card p-4 flex items-center gap-3">
+          <UsersIcon className="w-10 h-10 p-2 rounded-full bg-primary/10 text-primary" />
+          <div>
+            <p className="text-2xl font-bold text-foreground">
+              {profile.followingCount}
+            </p>
+            <p className="text-sm text-muted-foreground">Following</p>
           </div>
-
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div className="bg-muted/40 rounded-lg p-4">
-              <p className="text-sm text-muted-foreground">Last Login</p>
-              <p className="text-lg font-semibold text-foreground">
-                Today, 09:24 AM
-              </p>
-            </div>
-            <div className="bg-muted/40 rounded-lg p-4">
-              <p className="text-sm text-muted-foreground">Sign-up Method</p>
-              <p className="text-lg font-semibold text-foreground">
-                Email + Password
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="admin-card p-6 space-y-3">
-          <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
-            <User className="w-4 h-4" /> Account Status
-          </h3>
-          <div className="space-y-2 text-sm text-muted-foreground">
-            <div className="flex items-center justify-between">
-              <span>Current Status</span>
-              {renderStatusPill(status)}
-            </div>
-            <div className="flex items-center justify-between">
-              <span>Verification</span>
-              <span className="px-2 py-1 rounded bg-muted text-xs">
-                Email verified
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span>2FA</span>
-              <span className="px-2 py-1 rounded bg-muted text-xs">
-                Not enabled
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="admin-card p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
-            <FileText className="w-4 h-4" /> Submitted Documents
-          </h3>
-          <span className="text-sm text-muted-foreground">
-            {documents.filter((doc) => doc.status === "verified").length} of{" "}
-            {documents.length} verified
-          </span>
-        </div>
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {documents.map((doc) => (
-            <div
-              key={doc.id}
-              className="border border-border rounded-lg p-4 space-y-2"
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-foreground">
-                    {doc.name}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{doc.type}</p>
-                </div>
-                <span
-                  className={
-                    doc.status === "verified"
-                      ? "px-2 py-1 rounded-full bg-success/10 text-success text-xs"
-                      : doc.status === "rejected"
-                      ? "px-2 py-1 rounded-full bg-destructive/10 text-destructive text-xs"
-                      : "px-2 py-1 rounded-full bg-amber-50 text-amber-700 text-xs"
-                  }
-                >
-                  {doc.status === "verified"
-                    ? "Verified"
-                    : doc.status === "pending"
-                    ? "Pending"
-                    : "Rejected"}
-                </span>
-              </div>
-              <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                <a className="text-primary hover:underline" href={doc.url}>
-                  View file
-                </a>
-                {doc.status === "pending" && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 px-3 text-success hover:text-success"
-                    onClick={() =>
-                      setDocuments((docs) =>
-                        docs.map((d) =>
-                          d.id === doc.id ? { ...d, status: "verified" } : d
-                        )
-                      )
-                    }
-                  >
-                    Mark verified
-                  </Button>
-                )}
-              </div>
-            </div>
-          ))}
         </div>
       </div>
     </div>

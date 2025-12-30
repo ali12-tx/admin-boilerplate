@@ -1,11 +1,25 @@
 import { useState, useRef, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ShieldCheck, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { api, ApiClientError } from "@/config/client";
+import { API_ENDPOINTS } from "@/config/config";
+import { useToast } from "@/hooks/use-toast";
 
 const OTPVerification = () => {
   const [otp, setOtp] = useState<string[]>(["", "", "", "", "", ""]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
+  const searchEmail = new URLSearchParams(location.search).get("email") || "";
+  const stateEmail =
+    (location.state as { email?: string } | null)?.email || "";
+  const email = stateEmail || searchEmail;
 
   useEffect(() => {
     inputRefs.current[0]?.focus();
@@ -40,13 +54,92 @@ const OTPVerification = () => {
     setOtp(newOtp);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("OTP submitted:", otp.join(""));
+    setError(null);
+
+    if (!email) {
+      setError("Email is missing. Please request a new OTP.");
+      return;
+    }
+
+    const otpValue = otp.join("");
+    if (otpValue.length !== 6) {
+      setError("Please enter the 6-digit code.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const response = await api.post<{ resetToken?: string }>(
+        API_ENDPOINTS.AUTH.VERIFY_OTP,
+        { email, otp: otpValue },
+        { requiresAuth: false }
+      );
+
+      toast({
+        title: "OTP verified",
+        description: "Your code was verified successfully. Set a new password.",
+      });
+
+      navigate("/reset-password", {
+        replace: true,
+        state: {
+          email,
+          otp: otpValue,
+          resetToken: response?.resetToken,
+        },
+      });
+    } catch (err) {
+      const message =
+        err instanceof ApiClientError
+          ? err.message
+          : "Unable to verify OTP. Please try again.";
+      setError(message);
+      toast({
+        variant: "destructive",
+        title: "Verification failed",
+        description: message,
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleResend = () => {
-    console.log("Resend OTP requested");
+  const handleResend = async () => {
+    setError(null);
+
+    if (!email) {
+      setError("Email is missing. Please return to request a new OTP.");
+      return;
+    }
+
+    setIsResending(true);
+    try {
+      await api.post(
+        API_ENDPOINTS.AUTH.RESEND_OTP,
+        { email },
+        { requiresAuth: false }
+      );
+
+      toast({
+        title: "OTP resent",
+        description: `A new code has been sent to ${email}.`,
+      });
+    } catch (err) {
+      const message =
+        err instanceof ApiClientError
+          ? err.message
+          : "Unable to resend OTP. Please try again.";
+      setError(message);
+      toast({
+        variant: "destructive",
+        title: "Resend failed",
+        description: message,
+      });
+    } finally {
+      setIsResending(false);
+    }
   };
 
   return (
@@ -59,7 +152,9 @@ const OTPVerification = () => {
             </div>
             <h1 className="text-2xl font-bold text-foreground">Verify OTP</h1>
             <p className="mt-2 text-muted-foreground">
-              Enter the 6-digit code sent to your email
+              {email
+                ? `Enter the 6-digit code sent to ${email}`
+                : "Enter the 6-digit code sent to your email"}
             </p>
           </div>
 
@@ -81,17 +176,34 @@ const OTPVerification = () => {
               ))}
             </div>
 
-            <Button type="submit" className="w-full" size="lg">
-              Verify OTP
+            {error && (
+              <p className="text-sm text-destructive text-center">{error}</p>
+            )}
+
+            <Button
+              type="submit"
+              className="w-full"
+              size="lg"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? "Verifying..." : "Verify OTP"}
             </Button>
 
             <div className="text-center">
               <button
                 type="button"
                 onClick={handleResend}
+                disabled={isResending}
                 className="text-sm text-muted-foreground hover:text-primary transition-colors"
               >
-                Didn't receive code? <span className="font-medium text-primary">Resend OTP</span>
+                {isResending ? (
+                  "Resending..."
+                ) : (
+                  <>
+                    Didn't receive code?{" "}
+                    <span className="font-medium text-primary">Resend OTP</span>
+                  </>
+                )}
               </button>
             </div>
           </form>

@@ -1,58 +1,149 @@
-import { useState } from "react";
-import { Save, Clock } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Save, Clock, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import RichTextEditor from "@/components/shared/RichTextEditor";
 import ConfirmDialog from "@/components/shared/ConfirmDialog";
 import { useToast } from "@/hooks/use-toast";
-
-const defaultContent = `About Our Application
-
-Version 1.0.0
-
-Welcome to our application! We are dedicated to providing you with the best experience possible.
-
-Our Mission
-To create innovative solutions that help businesses and individuals achieve their goals more efficiently.
-
-What We Offer
-• Intuitive user interface designed for ease of use
-• Powerful features to boost your productivity
-• Secure and reliable infrastructure
-• 24/7 customer support
-
-Our Team
-We are a dedicated team of developers, designers, and product specialists committed to excellence.
-
-History
-Founded in 2024, our company has grown from a small startup to a trusted name in the industry.
-
-Contact Information
-• Email: support@example.com
-• Phone: +1 (555) 123-4567
-• Address: 123 Business Street, City, Country
-
-Follow Us
-Stay connected with us on social media for the latest updates and announcements.
-
-Thank you for choosing our application. We're excited to have you on this journey with us!`;
+import { api, ApiClientError } from "@/config/client";
+import { API_ENDPOINTS } from "@/config/config";
+import type {
+  AboutAppContent,
+  CreateAboutAppResponse,
+  GetAboutAppResponse,
+} from "@/types";
 
 const AboutApp = () => {
-  const [content, setContent] = useState(defaultContent);
+  const [content, setContent] = useState("");
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const language = "en";
+  const platform = "android";
   const { toast } = useToast();
 
+  const normalizeAboutAppPayload = (
+    payload?: GetAboutAppResponse | CreateAboutAppResponse | null
+  ): AboutAppContent | null => {
+    if (!payload || typeof payload !== "object") return null;
+
+    const record =
+      (payload as { aboutApp?: AboutAppContent }).aboutApp ??
+      (payload as { content?: AboutAppContent | string }).content ??
+      (payload as { data?: AboutAppContent | string }).data;
+
+    if (!record) return null;
+    if (typeof record === "string") {
+      return { content: record };
+    }
+
+    return record;
+  };
+
+  const updateLastSaved = (record?: AboutAppContent | null) => {
+    if (!record) {
+      setLastSaved(null);
+      return;
+    }
+
+    const timestamp = record.updatedAt ?? record.createdAt;
+    setLastSaved(timestamp ? new Date(timestamp) : new Date());
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchAboutApp = async () => {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const response = await api.get<GetAboutAppResponse>(
+          `${API_ENDPOINTS.ABOUT_APP.ROOT}?language=${language}&platform=${platform}`
+        );
+        const aboutApp = normalizeAboutAppPayload(response);
+
+        if (isMounted) {
+          setContent(aboutApp?.content || "");
+          updateLastSaved(aboutApp);
+        }
+      } catch (err) {
+        const message =
+          err instanceof ApiClientError
+            ? err.message
+            : "Unable to load About App content.";
+
+        if (isMounted) {
+          setError(message);
+          setContent("");
+          setLastSaved(null);
+        }
+
+        toast({
+          variant: "destructive",
+          title: "Failed to load About App",
+          description: message,
+        });
+      } finally {
+        isMounted && setIsLoading(false);
+      }
+    };
+
+    fetchAboutApp();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [language, platform, toast]);
+
   const handleSaveClick = () => {
+    if (isSaving) return;
     setSaveDialogOpen(true);
   };
 
-  const confirmSave = () => {
-    setLastSaved(new Date());
-    toast({
-      title: "Changes saved",
-      description: "Your about page has been updated successfully.",
-    });
+  const confirmSave = async () => {
+    setIsSaving(true);
+    setError(null);
+
+    try {
+      const response = await api.post<CreateAboutAppResponse>(
+        API_ENDPOINTS.ABOUT_APP.ROOT,
+        { content, language, platform }
+      );
+      const aboutApp = normalizeAboutAppPayload(response) ?? {
+        content,
+        language,
+        platform,
+      };
+
+      setContent(aboutApp.content || content);
+      updateLastSaved(aboutApp);
+
+      toast({
+        title: "Changes saved",
+        description:
+          response.message ||
+          "Your about page has been updated successfully.",
+      });
+    } catch (err) {
+      const message =
+        err instanceof ApiClientError
+          ? err.message
+          : "Unable to save About App content.";
+
+      setError(message);
+      toast({
+        variant: "destructive",
+        title: "Failed to save About App",
+        description: message,
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
+
+  const isContentEmpty = !content.trim();
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -82,31 +173,44 @@ const AboutApp = () => {
               Last saved: {lastSaved.toLocaleTimeString()}
             </span>
           )}
-          <Button onClick={handleSaveClick} className="gap-2">
-            <Save className="w-4 h-4" />
-            Save Changes
+          <Button
+            onClick={handleSaveClick}
+            className="gap-2"
+            disabled={isSaving || isLoading || isContentEmpty}
+          >
+            {isSaving ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4" />
+                Save Changes
+              </>
+            )}
           </Button>
         </div>
       </div>
 
-      {/* Editor */}
-      <RichTextEditor initialContent={content} onChange={setContent} />
+      {error && (
+        <div className="admin-card p-4 bg-destructive/10 border border-destructive/20 text-destructive">
+          {error}
+        </div>
+      )}
 
-      {/* Version Info */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="admin-card p-4 text-center">
-          <p className="text-lg font-bold text-foreground">v1.0.0</p>
-          <p className="text-sm text-muted-foreground">Current Version</p>
-        </div>
-        <div className="admin-card p-4 text-center">
-          <p className="text-lg font-bold text-foreground">Jan 2024</p>
-          <p className="text-sm text-muted-foreground">Last Updated</p>
-        </div>
-        <div className="admin-card p-4 text-center">
-          <p className="text-lg font-bold text-success">Active</p>
-          <p className="text-sm text-muted-foreground">Status</p>
-        </div>
+      {/* Editor */}
+      <div className="space-y-3">
+        {isLoading ? (
+          <div className="admin-card p-4 flex items-center gap-2 text-muted-foreground">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            <span>Loading About App content...</span>
+          </div>
+        ) : (
+          <RichTextEditor initialContent={content} onChange={setContent} />
+        )}
       </div>
+
     </div>
   );
 };

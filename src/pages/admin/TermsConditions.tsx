@@ -1,57 +1,128 @@
-import { useState } from "react";
-import { Save, Clock } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Save, Clock, Loader2, RefreshCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import RichTextEditor from "@/components/shared/RichTextEditor";
 import ConfirmDialog from "@/components/shared/ConfirmDialog";
 import { useToast } from "@/hooks/use-toast";
-
-const defaultContent = `Terms and Conditions
-
-Last updated: January 2024
-
-Please read these Terms and Conditions carefully before using our service.
-
-1. Acceptance of Terms
-By accessing and using this service, you accept and agree to be bound by the terms and provision of this agreement.
-
-2. User Accounts
-When you create an account with us, you must provide accurate, complete, and current information at all times.
-
-3. Intellectual Property
-The service and its original content, features, and functionality are and will remain the exclusive property of the Company.
-
-4. Termination
-We may terminate or suspend your account immediately, without prior notice or liability, for any reason whatsoever.
-
-5. Limitation of Liability
-In no event shall the Company be liable for any indirect, incidental, special, consequential, or punitive damages.
-
-6. Governing Law
-These Terms shall be governed and construed in accordance with the laws applicable in your jurisdiction.
-
-7. Changes to Terms
-We reserve the right, at our sole discretion, to modify or replace these Terms at any time.
-
-8. Contact Us
-If you have any questions about these Terms, please contact our support team.`;
+import { api, ApiClientError } from "@/config/client";
+import { API_ENDPOINTS } from "@/config/config";
+import type { TermsDocument, TermsResponse } from "@/types";
 
 const TermsConditions = () => {
-  const [content, setContent] = useState(defaultContent);
+  const [content, setContent] = useState("");
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [language, setLanguage] = useState("en");
+  const [currentVersion, setCurrentVersion] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
+  const formattedLastSaved = useMemo(
+    () => (lastSaved ? lastSaved.toLocaleString() : null),
+    [lastSaved]
+  );
+
+  const loadTerms = useCallback(
+    async (lang: string) => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const response = await api.get<TermsResponse>(
+          API_ENDPOINTS.TERMS.ROOT,
+          {
+            headers: { "Accept-Language": lang },
+          }
+        );
+        const terms: TermsDocument = response.terms;
+
+        setContent(terms.content || "");
+        setCurrentVersion(terms.version ?? null);
+        setLastSaved(terms.createdAt ? new Date(terms.createdAt) : null);
+      } catch (err) {
+        if (err instanceof ApiClientError && err.statusCode === 404) {
+          setContent("");
+          setCurrentVersion(null);
+          setLastSaved(null);
+          setError(
+            "No terms found for this language yet. Create the first entry."
+          );
+        } else {
+          const message =
+            err instanceof ApiClientError
+              ? err.message
+              : "Unable to load terms. Please try again.";
+          setError(message);
+          toast({
+            variant: "destructive",
+            title: "Failed to load terms",
+            description: message,
+          });
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [toast]
+  );
+
+  useEffect(() => {
+    loadTerms(language);
+  }, [language, loadTerms]);
+
   const handleSaveClick = () => {
+    if (!content.trim()) {
+      setError("Content is required to save new terms.");
+      return;
+    }
     setSaveDialogOpen(true);
   };
 
-  const confirmSave = () => {
-    setLastSaved(new Date());
-    toast({
-      title: "Changes saved",
-      description: "Your terms and conditions have been updated successfully.",
-    });
+  const confirmSave = async () => {
+    setIsSaving(true);
+    setError(null);
+    try {
+      const response = await api.post<TermsResponse>(
+        API_ENDPOINTS.TERMS.ROOT,
+        { content },
+        {
+          headers: { "Accept-Language": language },
+        }
+      );
+      const terms: TermsDocument = response.terms;
+
+      setContent(terms.content);
+      setCurrentVersion(terms.version ?? null);
+      setLastSaved(terms.createdAt ? new Date(terms.createdAt) : new Date());
+
+      toast({
+        title: "Changes saved",
+        description: `Version ${terms.version ?? ""} has been created.`,
+      });
+    } catch (err) {
+      const message =
+        err instanceof ApiClientError
+          ? err.message
+          : "Unable to save terms. Please try again.";
+      setError(message);
+      toast({
+        variant: "destructive",
+        title: "Save failed",
+        description: message,
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
+
+  const handleLanguageChange = (
+    event: React.ChangeEvent<HTMLSelectElement>
+  ) => {
+    setLanguage(event.target.value);
+  };
+
+  const isSaveDisabled = isSaving || isLoading || !content.trim();
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -68,34 +139,78 @@ const TermsConditions = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">Terms & Conditions</h2>
+          <h2 className="text-2xl font-bold text-foreground">
+            Terms & Conditions
+          </h2>
           <p className="text-muted-foreground">
-            Manage your application's terms of service
+            Manage your application's terms of service by language and version.
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          {lastSaved && (
-            <span className="text-sm text-muted-foreground flex items-center gap-1">
-              <Clock className="w-4 h-4" />
-              Last saved: {lastSaved.toLocaleTimeString()}
-            </span>
-          )}
-          <Button onClick={handleSaveClick} className="gap-2">
-            <Save className="w-4 h-4" />
-            Save Changes
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <label
+              className="text-sm font-medium text-foreground"
+              htmlFor="language-select"
+            >
+              Language
+            </label>
+            <select
+              id="language-select"
+              value={language}
+              onChange={handleLanguageChange}
+              disabled={isLoading || isSaving}
+              className="px-3 py-2 rounded-lg bg-input border border-border text-sm text-foreground focus:ring-2 focus:ring-primary/20 focus:outline-none"
+            >
+              <option value="en">English</option>
+              <option value="es">Spanish</option>
+              <option value="fr">French</option>
+              <option value="de">German</option>
+            </select>
+          </div>
+
+          <Button
+            onClick={handleSaveClick}
+            className="gap-2"
+            disabled={isSaveDisabled}
+          >
+            {isSaving ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="w-4 h-4" />
+                Save Changes
+              </>
+            )}
           </Button>
         </div>
       </div>
 
+      {error && (
+        <div className="admin-card border-destructive/20 bg-destructive/10 text-destructive px-4 py-3">
+          {error}
+        </div>
+      )}
+
       {/* Editor */}
-      <RichTextEditor initialContent={content} onChange={setContent} />
+      {isLoading ? (
+        <div className="admin-card p-4 flex items-center gap-2 text-muted-foreground">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          <span>Loading terms...</span>
+        </div>
+      ) : (
+        <RichTextEditor initialContent={content} onChange={setContent} />
+      )}
 
       {/* Info */}
       <div className="admin-card p-4 bg-info/5 border-info/20">
         <p className="text-sm text-info">
-          <strong>Tip:</strong> Make sure to review and update your terms regularly to
-          comply with applicable laws and regulations.
+          <strong>Tip:</strong> Make sure to review and update your terms
+          regularly to comply with applicable laws and regulations. Versions are
+          generated automatically for the selected language.
         </p>
       </div>
     </div>

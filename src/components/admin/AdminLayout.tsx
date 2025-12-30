@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Outlet, Link, useLocation } from "react-router-dom";
+import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   Users,
@@ -12,6 +12,7 @@ import {
   User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuthStore } from "@/store/useAuthStore";
 
 const menuItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/admin/dashboard" },
@@ -25,12 +26,19 @@ const AdminLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const { logout } = useAuthStore();
 
   const isActive = (path: string) => location.pathname === path;
   const getHeaderTitle = () => {
     if (location.pathname.startsWith("/admin/users/")) return "User Profile";
     if (location.pathname === "/admin/profile") return "Profile";
     return menuItems.find((item) => isActive(item.path))?.label || "Dashboard";
+  };
+  const handleLogout = () => {
+    logout();
+    setMobileMenuOpen(false);
+    navigate("/login");
   };
 
   return (
@@ -102,19 +110,20 @@ const AdminLayout = () => {
 
           {/* Logout */}
           <div className="p-3 border-t border-sidebar-border">
-            <Link
-              to="/login"
-              className="flex items-center gap-3 px-3 py-3 rounded-lg text-sidebar-foreground hover:bg-destructive/10 hover:text-destructive transition-all duration-200"
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="flex w-full items-center gap-3 px-3 py-3 rounded-lg text-sidebar-foreground hover:bg-destructive/10 hover:text-destructive transition-all duration-200"
             >
               <LogOut className="w-5 h-5 flex-shrink-0" />
               {sidebarOpen && <span className="animate-fade-in">Logout</span>}
-            </Link>
+            </button>
           </div>
         </div>
       </aside>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0 h-screen">
+      <div className="flex-1 flex flex-col min-w-0 min-h-0 h-screen">
         {/* Header */}
         <header className="h-16 bg-card border-b border-border flex items-center justify-between px-4 lg:px-6">
           <div className="flex items-center gap-4">
@@ -141,7 +150,7 @@ const AdminLayout = () => {
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 p-4 lg:p-6 overflow-y-auto overflow-x-hidden">
+        <main className="flex-1 min-h-0 p-4 lg:p-6 overflow-y-auto overflow-x-hidden overscroll-contain">
           <Outlet />
         </main>
       </div>

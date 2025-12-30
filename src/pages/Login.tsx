@@ -1,18 +1,58 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { FormEvent, useEffect, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Eye, EyeOff, Mail, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { api, ApiClientError } from "@/config/client";
+import { API_ENDPOINTS } from "@/config/config";
+import { useAuthStore } from "@/store/useAuthStore";
+import type { LoginResponse } from "@/types/auth";
 import authIllustration from "@/assets/auth-illustration.png";
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { isAuthenticated, setCredentials } = useAuthStore();
+  const from =
+    (location.state as { from?: string } | null)?.from || "/admin/dashboard";
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate(from, { replace: true });
+    }
+  }, [from, isAuthenticated, navigate]);
+
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    // UI only - no actual authentication
-    console.log("Login attempted:", { email, password });
+    setError(null);
+    setIsSubmitting(true);
+
+    try {
+      const data = await api.post<LoginResponse>(
+        API_ENDPOINTS.AUTH.LOGIN,
+        { email, password },
+        { requiresAuth: false }
+      );
+
+      setCredentials({
+        user: data.user,
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken ?? null,
+      });
+      navigate(from, { replace: true });
+    } catch (err) {
+      if (err instanceof ApiClientError) {
+        setError(err.message);
+      } else {
+        setError("Unable to log in. Please try again.");
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -62,6 +102,7 @@ const Login = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="Enter your email"
                   className="w-full pl-12 pr-4 py-3 bg-input rounded-lg text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all"
+                  required
                 />
               </div>
             </div>
@@ -77,6 +118,7 @@ const Login = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your password"
+                  required
                   className="w-full pl-12 pr-12 py-3 bg-input rounded-lg text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all"
                 />
                 <button
@@ -102,14 +144,19 @@ const Login = () => {
               </Link>
             </div>
 
-            <Button type="submit" className="w-full" size="lg">
-              Login
+            {error && (
+              <p className="text-sm text-destructive text-center">{error}</p>
+            )}
+
+            <Button
+              type="submit"
+              className="w-full"
+              size="lg"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? "Signing in..." : "Login"}
             </Button>
           </form>
-
-          <p className="mt-8 text-center text-sm text-muted-foreground">
-            Protected by enterprise-grade security
-          </p>
         </div>
       </div>
     </div>

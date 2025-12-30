@@ -1,50 +1,113 @@
-import { useState } from "react";
-import { Save, Clock } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Save, Clock, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import RichTextEditor from "@/components/shared/RichTextEditor";
 import ConfirmDialog from "@/components/shared/ConfirmDialog";
 import { useToast } from "@/hooks/use-toast";
-
-const defaultContent = `Privacy Policy
-
-Last updated: January 2024
-
-Welcome to our Privacy Policy page. Your privacy is critically important to us.
-
-1. Information We Collect
-We collect information you provide directly to us, such as when you create an account, make a purchase, or contact us for support.
-
-2. How We Use Your Information
-We use the information we collect to:
-• Provide, maintain, and improve our services
-• Process transactions and send related information
-• Send you technical notices and support messages
-
-3. Information Sharing
-We do not share your personal information with third parties except as described in this policy.
-
-4. Data Security
-We implement appropriate security measures to protect against unauthorized access, alteration, disclosure, or destruction of your personal information.
-
-5. Contact Us
-If you have any questions about this Privacy Policy, please contact us.`;
+import { api, ApiClientError } from "@/config/client";
+import { API_ENDPOINTS } from "@/config/config";
+import type { PrivacyPolicyDocument, PrivacyPolicyResponse } from "@/types";
 
 const PrivacyPolicy = () => {
-  const [content, setContent] = useState(defaultContent);
+  const [content, setContent] = useState("");
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
+
+  const extractPolicy = (
+    payload: PrivacyPolicyResponse | PrivacyPolicyDocument | undefined
+  ): PrivacyPolicyDocument | null => {
+    if (!payload || typeof payload !== "object") return null;
+    const data = "data" in payload && payload.data ? payload.data : payload;
+    if (data && typeof data === "object" && "privacyPolicy" in data) {
+      return (
+        (data as { privacyPolicy?: PrivacyPolicyDocument }).privacyPolicy ??
+        null
+      );
+    }
+    if (data && typeof data === "object" && "content" in data) {
+      return data as PrivacyPolicyDocument;
+    }
+    return null;
+  };
+
+  const fetchPrivacyPolicy = async () => {
+    setIsLoading(true);
+    try {
+      const response = await api.get<PrivacyPolicyResponse>(
+        API_ENDPOINTS.PRIVACY_POLICY.ROOT,
+        { requiresAuth: true }
+      );
+      const policy = extractPolicy(response);
+      const policyContent = policy?.content?.trim();
+
+      setContent(policyContent && policyContent.length ? policyContent : "");
+
+      if (policy?.updatedAt || policy?.createdAt) {
+        setLastSaved(new Date(policy.updatedAt ?? policy.createdAt!));
+      } else {
+        setLastSaved(null);
+      }
+    } catch (error) {
+      const message =
+        error instanceof ApiClientError
+          ? error.message
+          : "Unable to load privacy policy. Showing default content.";
+      toast({
+        variant: "destructive",
+        title: "Failed to load policy",
+        description: message,
+      });
+      setContent("");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPrivacyPolicy();
+  }, []);
 
   const handleSaveClick = () => {
     setSaveDialogOpen(true);
   };
 
-  const confirmSave = () => {
-    setLastSaved(new Date());
-    toast({
-      title: "Changes saved",
-      description: "Your privacy policy has been updated successfully.",
-    });
+  const confirmSave = async () => {
+    setIsSaving(true);
+    try {
+      const response = await api.post<PrivacyPolicyResponse>(
+        API_ENDPOINTS.PRIVACY_POLICY.ROOT,
+        { content }
+      );
+      const policy = extractPolicy(response);
+      if (policy?.content) {
+        setContent(policy.content);
+      }
+      setLastSaved(
+        policy?.updatedAt || policy?.createdAt
+          ? new Date(policy.updatedAt ?? policy.createdAt!)
+          : new Date()
+      );
+      toast({
+        title: "Changes saved",
+        description: "Your privacy policy has been updated successfully.",
+      });
+    } catch (error) {
+      const message =
+        error instanceof ApiClientError
+          ? error.message
+          : "Server error while saving privacy policy.";
+      toast({
+        variant: "destructive",
+        title: "Save failed",
+        description: message,
+      });
+    } finally {
+      setIsSaving(false);
+      setSaveDialogOpen(false);
+    }
   };
 
   return (
@@ -75,21 +138,32 @@ const PrivacyPolicy = () => {
               Last saved: {lastSaved.toLocaleTimeString()}
             </span>
           )}
-          <Button onClick={handleSaveClick} className="gap-2">
+          <Button
+            onClick={handleSaveClick}
+            className="gap-2"
+            disabled={isLoading || isSaving}
+          >
             <Save className="w-4 h-4" />
-            Save Changes
+            {isSaving ? "Saving..." : "Save Changes"}
           </Button>
         </div>
       </div>
 
       {/* Editor */}
-      <RichTextEditor initialContent={content} onChange={setContent} />
+      {isLoading ? (
+        <div className="admin-card p-4 flex items-center gap-2 text-muted-foreground">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          <span>Loading current privacy policy...</span>
+        </div>
+      ) : (
+        <RichTextEditor initialContent={content} onChange={setContent} />
+      )}
 
       {/* Info */}
       <div className="admin-card p-4 bg-info/5 border-info/20">
         <p className="text-sm text-info">
-          <strong>Tip:</strong> Use the toolbar to format your text. Changes will not be
-          published until you click "Save Changes".
+          <strong>Tip:</strong> Use the toolbar to format your text. Changes
+          will not be published until you click "Save Changes".
         </p>
       </div>
     </div>

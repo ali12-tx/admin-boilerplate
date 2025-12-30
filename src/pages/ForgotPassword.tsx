@@ -1,15 +1,55 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Mail, ArrowLeft, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { api, ApiClientError } from "@/config/client";
+import { API_ENDPOINTS } from "@/config/config";
+import { useToast } from "@/hooks/use-toast";
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const { toast } = useToast();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // UI only - no actual functionality
-    console.log("Reset requested for:", email);
+    setError(null);
+
+    if (!email) {
+      setError("Please enter your email address.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await api.post(
+        API_ENDPOINTS.AUTH.FORGOT_PASSWORD,
+        { email },
+        { requiresAuth: false }
+      );
+
+      toast({
+        title: "OTP sent",
+        description: "Check your email for the verification code.",
+      });
+
+      navigate("/otp-verification", { state: { email } });
+    } catch (err) {
+      const message =
+        err instanceof ApiClientError
+          ? err.message
+          : "Unable to send OTP. Please try again.";
+      setError(message);
+      toast({
+        variant: "destructive",
+        title: "Request failed",
+        description: message,
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -41,8 +81,17 @@ const ForgotPassword = () => {
               </div>
             </div>
 
-            <Button type="submit" className="w-full" size="lg">
-              Send OTP
+            {error && (
+              <p className="text-sm text-destructive text-center">{error}</p>
+            )}
+
+            <Button
+              type="submit"
+              className="w-full"
+              size="lg"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? "Sending..." : "Send OTP"}
             </Button>
           </form>
 

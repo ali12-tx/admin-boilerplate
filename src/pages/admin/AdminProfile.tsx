@@ -2,15 +2,25 @@ import { useState } from "react";
 import { ShieldCheck, Lock, Mail, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { useAuthStore } from "@/store/useAuthStore";
+import { api, ApiClientError } from "@/config/client";
+import { API_ENDPOINTS } from "@/config/config";
 
 const AdminProfile = () => {
   const { toast } = useToast();
+  const { user } = useAuthStore();
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const displayName = user?.profile?.fullName || "Admin User";
+  const displayEmail = user?.email || "admin@example.com";
+  const displayRole = user?.role || "Administrator";
+  const displayPicture = user?.profile?.profilePicture || "";
+  const initials = displayName.charAt(0).toUpperCase();
+
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
 
     if (!oldPassword || !newPassword || !confirmPassword) {
@@ -51,7 +61,12 @@ const AdminProfile = () => {
 
     setIsSubmitting(true);
 
-    setTimeout(() => {
+    try {
+      await api.post(
+        API_ENDPOINTS.AUTH.UPDATE_PASSWORD,
+        { oldPassword, newPassword },
+        { requiresAuth: true }
+      );
       setIsSubmitting(false);
       setOldPassword("");
       setNewPassword("");
@@ -60,24 +75,43 @@ const AdminProfile = () => {
         title: "Password updated",
         description: "Your password has been changed successfully.",
       });
-    }, 700);
+    } catch (error) {
+      const message =
+        error instanceof ApiClientError
+          ? error.message
+          : "Unable to update password. Please try again.";
+      toast({
+        title: "Update failed",
+        description: message,
+        variant: "destructive",
+      });
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="admin-card p-6 flex flex-col sm:flex-row sm:items-center gap-4">
-        <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xl font-semibold">
-          A
+        <div className="w-14 h-14 rounded-full  flex items-center justify-center text-primary text-xl font-semibold">
+          {displayPicture ? (
+            <img
+              src={displayPicture}
+              alt="Profile"
+              className="w-14 h-14 rounded-full object-cover"
+            />
+          ) : (
+            initials
+          )}
         </div>
         <div className="flex-1">
-          <p className="text-sm text-muted-foreground">Administrator</p>
-          <h2 className="text-2xl font-bold text-foreground">Admin Account</h2>
+          <p className="text-sm text-muted-foreground">{displayRole}</p>
+          <h2 className="text-2xl font-bold text-foreground">{displayName}</h2>
           <div className="flex flex-wrap gap-4 mt-2 text-sm text-muted-foreground">
             <span className="flex items-center gap-2">
-              <Mail className="w-4 h-4" /> admin@example.com
+              <Mail className="w-4 h-4" /> {displayEmail}
             </span>
             <span className="flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4" /> Role: Super Admin
+              <ShieldCheck className="w-4 h-4" /> Role: {displayRole}
             </span>
           </div>
         </div>
@@ -110,7 +144,9 @@ const AdminProfile = () => {
         <form className="space-y-5" onSubmit={handleSubmit}>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2 sm:col-span-2">
-              <label className="text-sm font-medium text-foreground">Current password</label>
+              <label className="text-sm font-medium text-foreground">
+                Current password
+              </label>
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <input
@@ -124,7 +160,9 @@ const AdminProfile = () => {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">New password</label>
+              <label className="text-sm font-medium text-foreground">
+                New password
+              </label>
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <input
@@ -138,7 +176,9 @@ const AdminProfile = () => {
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Confirm new password</label>
+              <label className="text-sm font-medium text-foreground">
+                Confirm new password
+              </label>
               <div className="relative">
                 <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <input
@@ -156,7 +196,11 @@ const AdminProfile = () => {
             <p className="text-sm text-muted-foreground">
               Password changes are applied to your admin account immediately.
             </p>
-            <Button type="submit" className="w-full sm:w-auto" disabled={isSubmitting}>
+            <Button
+              type="submit"
+              className="w-full sm:w-auto"
+              disabled={isSubmitting}
+            >
               {isSubmitting ? "Updating..." : "Update password"}
             </Button>
           </div>
