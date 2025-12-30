@@ -56,14 +56,14 @@ const Login = () => {
   };
 
   return (
-    <div className="max-h-screen flex">
+    <div className="min-h-screen flex flex-col lg:flex-row">
       {/* Left Side - Illustration */}
-      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary/10 via-accent to-primary/5 items-center justify-center p-12">
-        <div className="max-w-lg animate-fade-in">
+      <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary/10 via-accent to-primary/5 items-center justify-center p-8 xl:p-12">
+        <div className="w-full max-w-lg animate-fade-in">
           <img
             src={authIllustration}
             alt="Admin Dashboard Illustration"
-            className="w-full h-auto rounded-2xl shadow-2xl"
+            className="w-full max-h-[70vh] xl:max-h-[75vh] object-contain rounded-2xl shadow-2xl"
           />
           <div className="mt-8 text-center">
             <h2 className="text-2xl font-bold text-foreground">
