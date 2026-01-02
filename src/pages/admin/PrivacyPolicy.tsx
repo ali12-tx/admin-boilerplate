@@ -11,10 +11,16 @@ import type { PrivacyPolicyDocument, PrivacyPolicyResponse } from "@/types";
 const PrivacyPolicy = () => {
   const [content, setContent] = useState("");
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [lastSavedContent, setLastSavedContent] = useState("");
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const { toast } = useToast();
+  const normalizedContent = content.trim();
+  const hasChanges =
+    normalizedContent.length > 0 &&
+    normalizedContent !== lastSavedContent.trim();
+  const isSaveDisabled = isLoading || isSaving || !hasChanges;
 
   const extractPolicy = (
     payload: PrivacyPolicyResponse | PrivacyPolicyDocument | undefined
@@ -44,6 +50,7 @@ const PrivacyPolicy = () => {
       const policyContent = policy?.content?.trim();
 
       setContent(policyContent && policyContent.length ? policyContent : "");
+      setLastSavedContent(policyContent ?? "");
 
       if (policy?.updatedAt || policy?.createdAt) {
         setLastSaved(new Date(policy.updatedAt ?? policy.createdAt!));
@@ -71,6 +78,23 @@ const PrivacyPolicy = () => {
   }, []);
 
   const handleSaveClick = () => {
+    if (!normalizedContent) {
+      toast({
+        variant: "destructive",
+        title: "Content required",
+        description: "Privacy policy cannot be empty.",
+      });
+      return;
+    }
+
+    if (!hasChanges) {
+      toast({
+        title: "No changes to save",
+        description: "Update the privacy policy before saving.",
+      });
+      return;
+    }
+
     setSaveDialogOpen(true);
   };
 
@@ -85,6 +109,7 @@ const PrivacyPolicy = () => {
       if (policy?.content) {
         setContent(policy.content);
       }
+      setLastSavedContent(policy?.content ?? content);
       setLastSaved(
         policy?.updatedAt || policy?.createdAt
           ? new Date(policy.updatedAt ?? policy.createdAt!)
@@ -141,7 +166,7 @@ const PrivacyPolicy = () => {
           <Button
             onClick={handleSaveClick}
             className="gap-2"
-            disabled={isLoading || isSaving}
+            disabled={isSaveDisabled}
           >
             <Save className="w-4 h-4" />
             {isSaving ? "Saving..." : "Save Changes"}

@@ -15,6 +15,7 @@ import type {
 const AboutApp = () => {
   const [content, setContent] = useState("");
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [lastSavedContent, setLastSavedContent] = useState("");
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -22,6 +23,10 @@ const AboutApp = () => {
   const language = "en";
   const platform = "android";
   const { toast } = useToast();
+  const normalizedContent = content.trim();
+  const hasChanges =
+    normalizedContent.length > 0 &&
+    normalizedContent !== lastSavedContent.trim();
 
   const normalizeAboutAppPayload = (
     payload?: GetAboutAppResponse | CreateAboutAppResponse | null
@@ -66,6 +71,7 @@ const AboutApp = () => {
 
         if (isMounted) {
           setContent(aboutApp?.content || "");
+          setLastSavedContent(aboutApp?.content || "");
           updateLastSaved(aboutApp);
         }
       } catch (err) {
@@ -99,6 +105,22 @@ const AboutApp = () => {
 
   const handleSaveClick = () => {
     if (isSaving) return;
+    if (!normalizedContent) {
+      toast({
+        variant: "destructive",
+        title: "Content required",
+        description: "About App content cannot be empty.",
+      });
+      return;
+    }
+
+    if (!hasChanges) {
+      toast({
+        title: "No changes to save",
+        description: "Update the About App content before saving.",
+      });
+      return;
+    }
     setSaveDialogOpen(true);
   };
 
@@ -118,6 +140,7 @@ const AboutApp = () => {
       };
 
       setContent(aboutApp.content || content);
+      setLastSavedContent(aboutApp.content || content);
       updateLastSaved(aboutApp);
 
       toast({
@@ -142,8 +165,6 @@ const AboutApp = () => {
       setIsSaving(false);
     }
   };
-
-  const isContentEmpty = !content.trim();
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -176,7 +197,7 @@ const AboutApp = () => {
           <Button
             onClick={handleSaveClick}
             className="gap-2"
-            disabled={isSaving || isLoading || isContentEmpty}
+            disabled={isSaving || isLoading || !hasChanges}
           >
             {isSaving ? (
               <>

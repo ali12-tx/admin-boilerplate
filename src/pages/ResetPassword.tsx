@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { LockKeyhole, ShieldCheck, ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { LockKeyhole, ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api, ApiClientError } from "@/config/client";
 import { API_ENDPOINTS } from "@/config/config";
@@ -110,7 +110,7 @@ const ResetPassword = () => {
                 New password
               </label>
               <div className="relative">
-                <ShieldCheck className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                <LockKeyhole className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                 <input
                   type={showNewPassword ? "text" : "password"}
                   value={newPassword}
@@ -137,7 +137,7 @@ const ResetPassword = () => {
                 Confirm new password
               </label>
               <div className="relative">
-                <ShieldCheck className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                <LockKeyhole className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                 <input
                   type={showConfirmPassword ? "text" : "password"}
                   value={confirmPassword}

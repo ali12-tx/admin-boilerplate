@@ -1,12 +1,18 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Eye, EyeOff, Mail, Lock } from "lucide-react";
+import { Eye, EyeOff, Mail, LockKeyhole } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api, ApiClientError } from "@/config/client";
 import { API_ENDPOINTS } from "@/config/config";
 import { useAuthStore } from "@/store/useAuthStore";
 import type { LoginResponse } from "@/types/auth";
 import authIllustration from "@/assets/auth-illustration.png";
+
+type ExtendedLoginResponse = LoginResponse & {
+  statusCode?: number;
+  canChangePassword?: boolean;
+  resetToken?: string;
+};
 
 const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -32,11 +38,19 @@ const Login = () => {
     setIsSubmitting(true);
 
     try {
-      const data = await api.post<LoginResponse>(
+      const data = await api.post<ExtendedLoginResponse>(
         API_ENDPOINTS.AUTH.LOGIN,
         { email, password },
         { requiresAuth: false }
       );
+
+      if (data.statusCode === 201 && data.canChangePassword) {
+        navigate("/reset-password", {
+          replace: true,
+          state: { email, resetToken: data.resetToken },
+        });
+        return;
+      }
 
       setCredentials({
         user: data.user,
@@ -81,11 +95,11 @@ const Login = () => {
         <div className="w-full max-w-md animate-slide-up">
           <div className="text-center mb-8">
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary mb-4">
-              <Lock className="w-8 h-8 text-primary-foreground" />
+              <LockKeyhole className="w-8 h-8 text-primary-foreground" />
             </div>
             <h1 className="text-3xl font-bold text-foreground">Welcome Back</h1>
             <p className="mt-2 text-muted-foreground">
-              Sign in to your admin account
+              Login to your admin account
             </p>
           </div>
 
@@ -112,7 +126,7 @@ const Login = () => {
                 Password
               </label>
               <div className="relative">
-                <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                <LockKeyhole className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                 <input
                   type={showPassword ? "text" : "password"}
                   value={password}

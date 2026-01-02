@@ -158,7 +158,7 @@ const UserProfile = () => {
       <div className="space-y-4 animate-fade-in">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
-            <ChevronLeft className="w-4 h-4" /> Back
+            <ChevronLeft className="w-4 h-4" />
           </Button>
           <h2 className="text-2xl font-bold text-foreground">
             Loading profile...
@@ -176,7 +176,7 @@ const UserProfile = () => {
       <div className="space-y-4 animate-fade-in">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
-            <ChevronLeft className="w-4 h-4" /> Back
+            <ChevronLeft className="w-4 h-4" />
           </Button>
           <h2 className="text-2xl font-bold text-foreground">
             Profile unavailable
@@ -195,7 +195,7 @@ const UserProfile = () => {
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
-          <ChevronLeft className="w-4 h-4" /> Back
+          <ChevronLeft className="w-4 h-4" />
         </Button>
         <h2 className="text-2xl font-bold text-foreground">User Profile</h2>
       </div>

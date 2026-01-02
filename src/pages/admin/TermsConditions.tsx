@@ -16,8 +16,13 @@ const TermsConditions = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [language, setLanguage] = useState("en");
   const [currentVersion, setCurrentVersion] = useState<string | null>(null);
+  const [lastSavedContent, setLastSavedContent] = useState("");
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
+  const normalizedContent = content.trim();
+  const hasChanges =
+    normalizedContent.length > 0 &&
+    normalizedContent !== lastSavedContent.trim();
 
   const formattedLastSaved = useMemo(
     () => (lastSaved ? lastSaved.toLocaleString() : null),
@@ -38,11 +43,13 @@ const TermsConditions = () => {
         const terms: TermsDocument = response.terms;
 
         setContent(terms.content || "");
+        setLastSavedContent(terms.content || "");
         setCurrentVersion(terms.version ?? null);
         setLastSaved(terms.createdAt ? new Date(terms.createdAt) : null);
       } catch (err) {
         if (err instanceof ApiClientError && err.statusCode === 404) {
           setContent("");
+          setLastSavedContent("");
           setCurrentVersion(null);
           setLastSaved(null);
           setError(
@@ -72,8 +79,13 @@ const TermsConditions = () => {
   }, [language, loadTerms]);
 
   const handleSaveClick = () => {
-    if (!content.trim()) {
+    if (!normalizedContent) {
       setError("Content is required to save new terms.");
+      return;
+    }
+
+    if (!hasChanges) {
+      setError("No changes to save.");
       return;
     }
     setSaveDialogOpen(true);
@@ -93,6 +105,7 @@ const TermsConditions = () => {
       const terms: TermsDocument = response.terms;
 
       setContent(terms.content);
+      setLastSavedContent(terms.content);
       setCurrentVersion(terms.version ?? null);
       setLastSaved(terms.createdAt ? new Date(terms.createdAt) : new Date());
 
@@ -122,7 +135,7 @@ const TermsConditions = () => {
     setLanguage(event.target.value);
   };
 
-  const isSaveDisabled = isSaving || isLoading || !content.trim();
+  const isSaveDisabled = isSaving || isLoading || !hasChanges;
 
   return (
     <div className="space-y-6 animate-fade-in">
