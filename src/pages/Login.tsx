@@ -24,7 +24,7 @@ const Login = () => {
   const location = useLocation();
   const { isAuthenticated, setCredentials } = useAuthStore();
   const from =
-    (location.state as { from?: string } | null)?.from || "/admin/dashboard";
+    (location.state as { from?: string } | null)?.from || "/admin/users";
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -41,7 +41,7 @@ const Login = () => {
       const data = await api.post<ExtendedLoginResponse>(
         API_ENDPOINTS.AUTH.LOGIN,
         { email, password },
-        { requiresAuth: false }
+        { requiresAuth: false },
       );
 
       if (data.statusCode === 201 && data.canChangePassword) {
