@@ -1,5 +1,3 @@
-import type { ApiResponse } from ".";
-
 export type PrivacyPolicyDocument = {
   _id?: string;
   content: string;
@@ -8,6 +6,7 @@ export type PrivacyPolicyDocument = {
   updatedAt?: string;
 };
 
-export type PrivacyPolicyResponse = ApiResponse<{
+export type PrivacyPolicyResponse = {
+  message: string;
   privacyPolicy: PrivacyPolicyDocument;
-}>;
+};

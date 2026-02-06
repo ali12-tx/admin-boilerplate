@@ -6,6 +6,7 @@ import ConfirmDialog from "@/components/shared/ConfirmDialog";
 import { useToast } from "@/hooks/use-toast";
 import { api, ApiClientError } from "@/config/client";
 import { API_ENDPOINTS } from "@/config/config";
+import { unwrapPolicyContent, wrapPolicyContent } from "@/lib/policyContent";
 import type { TermsDocument, TermsResponse } from "@/types";
 
 const TermsConditions = () => {
@@ -41,9 +42,10 @@ const TermsConditions = () => {
           }
         );
         const terms: TermsDocument = response.terms;
+        const sanitizedContent = unwrapPolicyContent(terms.content || "");
 
-        setContent(terms.content || "");
-        setLastSavedContent(terms.content || "");
+        setContent(sanitizedContent);
+        setLastSavedContent(sanitizedContent);
         setCurrentVersion(terms.version ?? null);
         setLastSaved(terms.createdAt ? new Date(terms.createdAt) : null);
       } catch (err) {
@@ -95,17 +97,19 @@ const TermsConditions = () => {
     setIsSaving(true);
     setError(null);
     try {
+      const payloadContent = wrapPolicyContent(content);
       const response = await api.post<TermsResponse>(
         API_ENDPOINTS.TERMS.ROOT,
-        { content },
+        { content: payloadContent },
         {
           headers: { "Accept-Language": language },
         }
       );
       const terms: TermsDocument = response.terms;
+      const sanitizedContent = unwrapPolicyContent(terms.content);
 
-      setContent(terms.content);
-      setLastSavedContent(terms.content);
+      setContent(sanitizedContent);
+      setLastSavedContent(sanitizedContent);
       setCurrentVersion(terms.version ?? null);
       setLastSaved(terms.createdAt ? new Date(terms.createdAt) : new Date());
 

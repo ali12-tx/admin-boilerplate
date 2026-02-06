@@ -15,7 +15,6 @@ import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/useAuthStore";
 
 const menuItems = [
-  { icon: LayoutDashboard, label: "Dashboard", path: "/admin/dashboard" },
   { icon: Users, label: "Users", path: "/admin/users" },
   { icon: Shield, label: "Privacy Policy", path: "/admin/privacy-policy" },
   { icon: FileText, label: "Terms & Conditions", path: "/admin/terms" },
@@ -58,7 +57,7 @@ const AdminLayout = () => {
           sidebarOpen ? "w-64" : "w-20",
           mobileMenuOpen
             ? "translate-x-0"
-            : "-translate-x-full lg:translate-x-0"
+            : "-translate-x-full lg:translate-x-0",
         )}
       >
         <div className="flex flex-col h-full overflow-hidden">
@@ -97,7 +96,7 @@ const AdminLayout = () => {
                   "flex items-center gap-3 px-3 py-3 rounded-lg transition-all duration-200",
                   isActive(item.path)
                     ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                    : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
+                    : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground",
                 )}
               >
                 <item.icon className="w-5 h-5 flex-shrink-0" />

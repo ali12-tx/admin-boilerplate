@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Save, Clock, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import RichTextEditor from "@/components/shared/RichTextEditor";
@@ -6,6 +6,7 @@ import ConfirmDialog from "@/components/shared/ConfirmDialog";
 import { useToast } from "@/hooks/use-toast";
 import { api, ApiClientError } from "@/config/client";
 import { API_ENDPOINTS } from "@/config/config";
+import { unwrapPolicyContent, wrapPolicyContent } from "@/lib/policyContent";
 import type { PrivacyPolicyDocument, PrivacyPolicyResponse } from "@/types";
 
 const PrivacyPolicy = () => {
@@ -15,6 +16,7 @@ const PrivacyPolicy = () => {
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
   const normalizedContent = content.trim();
   const hasChanges =
@@ -22,60 +24,52 @@ const PrivacyPolicy = () => {
     normalizedContent !== lastSavedContent.trim();
   const isSaveDisabled = isLoading || isSaving || !hasChanges;
 
-  const extractPolicy = (
-    payload: PrivacyPolicyResponse | PrivacyPolicyDocument | undefined
-  ): PrivacyPolicyDocument | null => {
-    if (!payload || typeof payload !== "object") return null;
-    const data = "data" in payload && payload.data ? payload.data : payload;
-    if (data && typeof data === "object" && "privacyPolicy" in data) {
-      return (
-        (data as { privacyPolicy?: PrivacyPolicyDocument }).privacyPolicy ??
-        null
-      );
-    }
-    if (data && typeof data === "object" && "content" in data) {
-      return data as PrivacyPolicyDocument;
-    }
-    return null;
-  };
-
-  const fetchPrivacyPolicy = async () => {
+  const loadPrivacyPolicy = useCallback(async () => {
     setIsLoading(true);
+    setError(null);
     try {
       const response = await api.get<PrivacyPolicyResponse>(
         API_ENDPOINTS.PRIVACY_POLICY.ROOT,
         { requiresAuth: true }
       );
-      const policy = extractPolicy(response);
-      const policyContent = policy?.content?.trim();
+      const policy = response.data.privacyPolicy;
+      const policyContent = unwrapPolicyContent(policy?.content ?? "");
+      const normalizedPolicyContent = policyContent.trim();
 
-      setContent(policyContent && policyContent.length ? policyContent : "");
-      setLastSavedContent(policyContent ?? "");
+      setContent(normalizedPolicyContent.length ? normalizedPolicyContent : "");
+      setLastSavedContent(normalizedPolicyContent ?? "");
 
       if (policy?.updatedAt || policy?.createdAt) {
         setLastSaved(new Date(policy.updatedAt ?? policy.createdAt!));
       } else {
         setLastSaved(null);
       }
-    } catch (error) {
-      const message =
-        error instanceof ApiClientError
-          ? error.message
-          : "Unable to load privacy policy. Showing default content.";
-      toast({
-        variant: "destructive",
-        title: "Failed to load policy",
-        description: message,
-      });
-      setContent("");
+    } catch (err) {
+      if (err instanceof ApiClientError && err.statusCode === 404) {
+        setContent("");
+        setLastSavedContent("");
+        setLastSaved(null);
+        setError("No privacy policy found yet. Create the first entry.");
+      } else {
+        const message =
+          err instanceof ApiClientError
+            ? err.message
+            : "Unable to load privacy policy. Please try again.";
+        setError(message);
+        toast({
+          variant: "destructive",
+          title: "Failed to load policy",
+          description: message,
+        });
+      }
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [toast]);
 
   useEffect(() => {
-    fetchPrivacyPolicy();
-  }, []);
+    loadPrivacyPolicy();
+  }, [loadPrivacyPolicy]);
 
   const handleSaveClick = () => {
     if (!normalizedContent) {
@@ -100,16 +94,18 @@ const PrivacyPolicy = () => {
 
   const confirmSave = async () => {
     setIsSaving(true);
+    setError(null);
     try {
+      const payloadContent = wrapPolicyContent(content);
       const response = await api.post<PrivacyPolicyResponse>(
         API_ENDPOINTS.PRIVACY_POLICY.ROOT,
-        { content }
+        { content: payloadContent }
       );
-      const policy = extractPolicy(response);
+      const policy = response.privacyPolicy;
       if (policy?.content) {
-        setContent(policy.content);
+        setContent(unwrapPolicyContent(policy.content));
       }
-      setLastSavedContent(policy?.content ?? content);
+      setLastSavedContent(unwrapPolicyContent(policy?.content ?? content));
       setLastSaved(
         policy?.updatedAt || policy?.createdAt
           ? new Date(policy.updatedAt ?? policy.createdAt!)
@@ -124,6 +120,7 @@ const PrivacyPolicy = () => {
         error instanceof ApiClientError
           ? error.message
           : "Server error while saving privacy policy.";
+      setError(message);
       toast({
         variant: "destructive",
         title: "Save failed",
@@ -173,6 +170,12 @@ const PrivacyPolicy = () => {
           </Button>
         </div>
       </div>
+
+      {error && (
+        <div className="admin-card border-destructive/20 bg-destructive/10 text-destructive px-4 py-3">
+          {error}
+        </div>
+      )}
 
       {/* Editor */}
       {isLoading ? (

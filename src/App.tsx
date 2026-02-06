@@ -28,7 +28,7 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           {/* Auth Routes */}
-          <Route path="/" element={<Navigate to="/admin/dashboard" replace />} />
+          <Route path="/" element={<Navigate to="/admin/users" replace />} />
           <Route path="/login" element={<Login />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/otp-verification" element={<OTPVerification />} />
@@ -43,7 +43,7 @@ const App = () => (
               </ProtectedRoute>
             }
           >
-            <Route index element={<Navigate to="/admin/dashboard" replace />} />
+            <Route index element={<Navigate to="/admin/users" replace />} />
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="profile" element={<AdminProfile />} />
             <Route path="users" element={<Users />} />

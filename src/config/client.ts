@@ -1,6 +1,6 @@
 /* ==================== API CLIENT ==================== */
 
-import { API_BASE_URL } from "./config";
+import { API_BASE_URL, API_ENDPOINTS } from "./config";
 import type { ApiError, ApiResponse } from "@/types";
 import { useAuthStore } from "@/store/useAuthStore";
 
@@ -35,6 +35,10 @@ function getAuthToken(): string | null {
   return useAuthStore.getState().accessToken;
 }
 
+function getRefreshToken(): string | null {
+  return useAuthStore.getState().refreshToken;
+}
+
 /**
  * Set auth token to localStorage
  */
@@ -56,14 +60,86 @@ export function clearAuthTokens(): void {
   useAuthStore.getState().logout();
 }
 
+let refreshAccessTokenPromise: Promise<string | null> | null = null;
+
+const extractTokenValue = (
+  payload: unknown,
+  key: "accessToken" | "refreshToken"
+): string | null => {
+  if (!payload || typeof payload !== "object") return null;
+
+  const rootValue = (payload as Record<string, unknown>)[key];
+  if (typeof rootValue === "string" && rootValue.trim()) return rootValue;
+
+  const data = (payload as { data?: unknown }).data;
+  if (data && typeof data === "object") {
+    const nestedValue = (data as Record<string, unknown>)[key];
+    if (typeof nestedValue === "string" && nestedValue.trim()) {
+      return nestedValue;
+    }
+  }
+
+  return null;
+};
+
+async function refreshAccessToken(): Promise<string | null> {
+  if (refreshAccessTokenPromise) {
+    return refreshAccessTokenPromise;
+  }
+
+  refreshAccessTokenPromise = (async () => {
+    const refreshToken = getRefreshToken();
+    if (!refreshToken) return null;
+
+    try {
+      const response = await apiClient<unknown>(API_ENDPOINTS.AUTH.REFRESH_TOKEN, {
+        method: "POST",
+        requiresAuth: false,
+        retryOnAuthError: false,
+        body: JSON.stringify({ refreshToken }),
+      });
+
+      const nextAccessToken = extractTokenValue(response, "accessToken");
+      if (!nextAccessToken) {
+        clearAuthTokens();
+        return null;
+      }
+
+      setAuthToken(nextAccessToken);
+
+      const nextRefreshToken = extractTokenValue(response, "refreshToken");
+      if (nextRefreshToken) {
+        setRefreshToken(nextRefreshToken);
+      }
+
+      return nextAccessToken;
+    } catch {
+      clearAuthTokens();
+      return null;
+    } finally {
+      refreshAccessTokenPromise = null;
+    }
+  })();
+
+  return refreshAccessTokenPromise;
+}
+
 /**
  * Main API client using fetch
  */
 export async function apiClient<TResponse = unknown>(
   endpoint: string,
-  options: RequestInit & { requiresAuth?: boolean } = {}
+  options: RequestInit & {
+    requiresAuth?: boolean;
+    retryOnAuthError?: boolean;
+  } = {}
 ): Promise<TResponse> {
-  const { requiresAuth = true, headers = {}, ...fetchOptions } = options;
+  const {
+    requiresAuth = true,
+    retryOnAuthError = true,
+    headers = {},
+    ...fetchOptions
+  } = options;
 
   // Check if body is FormData to avoid setting Content-Type
   const isFormData = fetchOptions.body instanceof FormData;
@@ -113,6 +189,52 @@ export async function apiClient<TResponse = unknown>(
 
     // Handle non-OK responses
     if (!response.ok) {
+      if (response.status === 401 && requiresAuth && retryOnAuthError) {
+        const nextAccessToken = await refreshAccessToken();
+
+        if (nextAccessToken) {
+          const retryHeaders = {
+            ...requestHeaders,
+            Authorization: `Bearer ${nextAccessToken}`,
+          };
+          const retryResponse = await fetch(url, {
+            ...fetchOptions,
+            headers: retryHeaders,
+          });
+
+          if (retryResponse.ok) {
+            const retryData: ApiResponse<TResponse> = await retryResponse.json();
+
+            if (isDev) {
+              console.group(
+                `✅ API Response (retried): ${
+                  fetchOptions.method || "GET"
+                } ${endpoint}`
+              );
+              console.log("Status:", retryResponse.status);
+              console.log("📥 Data:", retryData);
+              console.groupEnd();
+            }
+
+            return retryData as TResponse;
+          }
+
+          const retryErrorData: ApiError = await retryResponse
+            .json()
+            .catch(() => ({
+              success: false,
+              message: retryResponse.statusText || "An error occurred",
+              statusCode: retryResponse.status,
+            }));
+
+          throw new ApiClientError(
+            retryResponse.status,
+            retryErrorData.message || "Request failed",
+            retryErrorData.errors
+          );
+        }
+      }
+
       const errorData: ApiError = await response.json().catch(() => ({
         success: false,
         message: response.statusText || "An error occurred",
@@ -187,13 +309,19 @@ export async function apiClient<TResponse = unknown>(
 export const api = {
   get: <T>(
     endpoint: string,
-    options?: RequestInit & { requiresAuth?: boolean }
+    options?: RequestInit & {
+      requiresAuth?: boolean;
+      retryOnAuthError?: boolean;
+    }
   ) => apiClient<T>(endpoint, { ...options, method: "GET" }),
 
   post: <T>(
     endpoint: string,
     data?: unknown,
-    options?: RequestInit & { requiresAuth?: boolean }
+    options?: RequestInit & {
+      requiresAuth?: boolean;
+      retryOnAuthError?: boolean;
+    }
   ) =>
     apiClient<T>(endpoint, {
       ...options,
@@ -209,7 +337,10 @@ export const api = {
   put: <T>(
     endpoint: string,
     data?: unknown,
-    options?: RequestInit & { requiresAuth?: boolean }
+    options?: RequestInit & {
+      requiresAuth?: boolean;
+      retryOnAuthError?: boolean;
+    }
   ) =>
     apiClient<T>(endpoint, {
       ...options,
@@ -220,7 +351,10 @@ export const api = {
   patch: <T>(
     endpoint: string,
     data?: unknown,
-    options?: RequestInit & { requiresAuth?: boolean }
+    options?: RequestInit & {
+      requiresAuth?: boolean;
+      retryOnAuthError?: boolean;
+    }
   ) =>
     apiClient<T>(endpoint, {
       ...options,
@@ -230,6 +364,9 @@ export const api = {
 
   delete: <T>(
     endpoint: string,
-    options?: RequestInit & { requiresAuth?: boolean }
+    options?: RequestInit & {
+      requiresAuth?: boolean;
+      retryOnAuthError?: boolean;
+    }
   ) => apiClient<T>(endpoint, { ...options, method: "DELETE" }),
 };
